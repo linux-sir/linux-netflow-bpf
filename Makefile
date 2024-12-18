@@ -1,12 +1,14 @@
 # 项目名称
-TARGET := bootstrap
+TARGET := main
 
 # 路径配置
 SRC_DIR := src
 BPF_DIR := $(SRC_DIR)/bpf
-BPFOBJ := $(BPF_DIR)/$(TARGET).bpf.o
-BPFSKEL := $(BPF_DIR)/$(TARGET).skel.h
-USER_SRC := $(SRC_DIR)/main.c
+
+# eBPF 程序及其生成的文件
+BPF_PROGS := rx_packets tc_filter
+BPFOBJS := $(patsubst %, $(BPF_DIR)/%.bpf.o, $(BPF_PROGS))
+BPFSKELS := $(patsubst %, $(BPF_DIR)/%.skel.h, $(BPF_PROGS))
 
 # 工具配置
 CLANG := clang
@@ -21,20 +23,20 @@ USER_LDFLAGS := -lelf -lz -lbpf
 # 默认目标
 all: $(TARGET)
 
-# 编译 eBPF 程序
-$(BPFOBJ): $(BPF_DIR)/$(TARGET).bpf.c $(VMLINUX)
+# 编译每个 eBPF 程序
+$(BPF_DIR)/%.bpf.o: $(BPF_DIR)/%.bpf.c $(VMLINUX)
 	$(CLANG) $(BPF_CFLAGS) -c $< -o $@
 
-# 生成 Skeleton 文件
-$(BPFSKEL): $(BPFOBJ)
-	bpftool gen skeleton $(BPFOBJ) > $@
+# 生成每个 Skeleton 文件
+$(BPF_DIR)/%.skel.h: $(BPF_DIR)/%.bpf.o
+	bpftool gen skeleton $< > $@
 
 # 编译用户态程序
-$(TARGET): $(USER_SRC) $(BPFSKEL)
-	$(CC) $(USER_CFLAGS) -I$(BPF_DIR) $(USER_SRC) -o $@ $(USER_LDFLAGS)
+$(TARGET): $(SRC_DIR)/main.c $(BPFSKELS)
+	$(CC) $(USER_CFLAGS) $< -o $@ $(USER_LDFLAGS)
 
-# 清理目标文件
+# 清理构建环境
 clean:
-	rm -f $(BPF_DIR)/*.o $(BPFSKEL) $(TARGET)
+	rm -f $(BPFOBJS) $(BPFSKELS) $(TARGET)
 
 .PHONY: all clean
