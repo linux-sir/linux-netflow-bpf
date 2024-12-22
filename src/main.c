@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include "bpf/rx_packets.skel.h"  // Skeleton for rx_packets
 #include "bpf/tc_filter.skel.h"  // Skeleton for tc_filter
+#include "bpf/xdp_filter.skel.h"  // Skeleton for tc_filter
 
 int main() {
     // 加载和附加 rx_packets 程序
@@ -30,6 +31,20 @@ int main() {
         return 1;
     }
     printf("tc_filter program loaded and attached successfully\n");
+
+    // 加载并附加 XDP 程序
+    struct xdp_filter_bpf *xdp_skel = xdp_filter_bpf__open_and_load();
+    if (!xdp_skel) {
+        fprintf(stderr, "Failed to load xdp_filter program\n");
+        return 1;
+    }
+    if (xdp_filter_bpf__attach(xdp_skel)) {
+        fprintf(stderr, "Failed to attach xdp_filter program to interface eth0\n");
+        xdp_filter_bpf__destroy(xdp_skel);
+        return 1;
+    }
+    printf("xdp_filter program loaded and attached to eth0 successfully\n");
+
 
     // 保持程序运行
     while (1) {
